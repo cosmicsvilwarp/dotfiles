@@ -9,11 +9,12 @@ source /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
 alias reload-zsh="source ~/.zshrc"
 alias edit-zsh="nvim ~/.zshrc"
+
+source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
 # history setup
 HISTFILE=$HOME/.zhistory
@@ -29,6 +30,7 @@ bindkey '^[[A' history-search-backward
 bindkey '^[[B' history-search-forward
 
 # ---- Eza (better ls) -----
+
 alias ls="eza --icons=always"
 
 # ---- Zoxide (better cd) ----
@@ -43,21 +45,15 @@ export EDITOR="nvim"
 export VOLTA_HOME="$HOME/.volta"
 export PATH="$VOLTA_HOME/bin:$PATH"
 export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
-export PATH="$HOME/.local/bin:$PATH"
-
-# ----- Bat (better cat) -----
-export BAT_THEME=tokyonight_night
+# Added by Windsurf
+export PATH="/Users/svil/.codeium/windsurf/bin:$PATH"
 
 # ---- FZF -----
 
 # Set up fzf key bindings and fuzzy completion
 eval "$(fzf --zsh)"
 
-# Remap fzf file search from Ctrl+T to Ctrl+F (Ctrl+T conflicts with Zellij tab mode)
-bindkey -r '^T'
-bindkey '^F' fzf-file-widget
-
-# --- fzf theme ---
+# --- setup fzf theme ---
 fg="#CBE0F0"
 bg="#011628"
 bg_highlight="#143652"
@@ -68,11 +64,14 @@ cyan="#2CF9ED"
 export FZF_DEFAULT_OPTS="--color=fg:${fg},bg:${bg},hl:${purple},fg+:${fg},bg+:${bg_highlight},hl+:${purple},info:${blue},prompt:${cyan},pointer:${cyan},marker:${cyan},spinner:${cyan},header:${cyan}"
 
 # -- Use fd instead of fzf --
+
 export FZF_DEFAULT_COMMAND="fd --hidden --strip-cwd-prefix --exclude .git"
 export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 export FZF_ALT_C_COMMAND="fd --type=d --hidden --strip-cwd-prefix --exclude .git"
 
-# Use fd for listing path candidates.
+# Use fd (https://github.com/sharkdp/fd) for listing path candidates.
+# - The first argument to the function ($1) is the base path to start traversal
+# - See the source code (completion.bash/zsh) for the details.
 _fzf_compgen_path() {
   fd --hidden --exclude .git . "$1"
 }
@@ -84,14 +83,14 @@ _fzf_compgen_dir() {
 
 source ~/fzf-git.sh/fzf-git.sh
 
-# Remap fzf-git leader from Ctrl+G (conflicts with Zellij) to Ctrl+E
-# fzf-git hardcodes ^g so we manually rebind all widgets
-for o in files branches tags remotes hashes stashes lreflogs each_ref worktrees; do
-  for m in emacs vicmd viins; do
-    bindkey -M $m "^g^${o[1]}" undefined-key 2>/dev/null
-    bindkey -M $m "^g${o[1]}"  undefined-key 2>/dev/null
-    bindkey -M $m "^e^${o[1]}" fzf-git-$o-widget 2>/dev/null
-    bindkey -M $m "^e${o[1]}"  fzf-git-$o-widget 2>/dev/null
+# Remap fzf-git from Ctrl+G to Ctrl+E
+for m in emacs vicmd viins; do
+  for widget in files branches tags remotes hashes stashes lreflogs each_ref worktrees '?list_bindings'; do
+    key=${widget[1]}
+    bindkey -M $m -r "^g^${key}"
+    bindkey -M $m -r "^g${key}"
+    bindkey -M $m "^e^${key}" fzf-git-${widget}-widget
+    bindkey -M $m "^e${key}" fzf-git-${widget}-widget
   done
 done
 
@@ -100,15 +99,35 @@ show_file_or_dir_preview="if [ -d {} ]; then eza --tree --color=always {} | head
 export FZF_CTRL_T_OPTS="--preview '$show_file_or_dir_preview'"
 export FZF_ALT_C_OPTS="--preview 'eza --tree --color=always {} | head -200'"
 
+# Remap fzf file search from Ctrl+T to Ctrl+F
+bindkey -r '^T'
+bindkey '^F' fzf-file-widget
+
 # Advanced customization of fzf options via _fzf_comprun function
+# - The first argument to the function is the name of the command.
+# - You should make sure to pass the rest of the arguments to fzf.
 _fzf_comprun() {
   local command=$1
   shift
 
   case "$command" in
     cd)           fzf --preview 'eza --tree --color=always {} | head -200' "$@" ;;
-    export|unset) fzf --preview "eval 'echo \${}'"                         "$@" ;;
-    ssh)          fzf --preview 'dig {}'                                   "$@" ;;
-    *)            fzf --preview "$show_file_or_dir_preview"                "$@" ;;
+    export|unset) fzf --preview "eval 'echo \${}'"         "$@" ;;
+    ssh)          fzf --preview 'dig {}'                   "$@" ;;
+    *)            fzf --preview "$show_file_or_dir_preview" "$@" ;;
   esac
 }
+
+# ----- Bat (better cat) -----
+
+export BAT_THEME="Catppuccin Macchiato"
+
+# ---- Java (jEnv) ----
+export PATH="$HOME/.jenv/bin:$PATH"
+eval "$(jenv init -)"
+export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home)}"
+
+# Added by Windsurf
+export PATH="/Users/svil/.codeium/windsurf/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/Library/Python/3.9/bin:$PATH"
