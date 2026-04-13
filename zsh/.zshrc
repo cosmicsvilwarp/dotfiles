@@ -10,13 +10,17 @@ source /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
+# ---- Aliases ----
 alias reload-zsh="source ~/.zshrc"
 alias edit-zsh="nvim ~/.zshrc"
+alias ls="eza --icons=always"
+alias python="python3"
 
+# ---- Zsh plugins ----
 source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
-# history setup
+# ---- History ----
 HISTFILE=$HOME/.zhistory
 SAVEHIST=1000
 HISTSIZE=999
@@ -29,24 +33,12 @@ setopt hist_verify
 bindkey '^[[A' history-search-backward
 bindkey '^[[B' history-search-forward
 
-# ---- Eza (better ls) -----
-
-alias ls="eza --icons=always"
-
-# ---- Zoxide (better cd) ----
-eval "$(zoxide init zsh)"
-
-alias cd="z"
-
-alias python="python3"
-
+# ---- Environment ----
 export EDITOR="nvim"
+export PATH="$HOME/.local/bin:$PATH"
 
-export VOLTA_HOME="$HOME/.volta"
-export PATH="$VOLTA_HOME/bin:$PATH"
-export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
-# Added by Windsurf
-export PATH="/Users/svil/.codeium/windsurf/bin:$PATH"
+# ---- Python (Homebrew) ----
+export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"
 
 # ---- FZF -----
 
@@ -125,9 +117,8 @@ export BAT_THEME="Catppuccin Macchiato"
 # ---- Java (jEnv) ----
 export PATH="$HOME/.jenv/bin:$PATH"
 eval "$(jenv init -)"
-export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home)}"
+export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home 2>/dev/null)}"
 
-# Added by Windsurf
-export PATH="/Users/svil/.codeium/windsurf/bin:$PATH"
-export PATH="$HOME/.local/bin:$PATH"
-export PATH="$HOME/Library/Python/3.9/bin:$PATH"
+# ---- Zoxide (better cd) --- MUST be last ----
+eval "$(zoxide init zsh)"
+alias cd="z"

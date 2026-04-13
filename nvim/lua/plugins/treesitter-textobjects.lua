@@ -18,8 +18,6 @@ return {
             ["ii"] = { query = "@conditional.inner", desc = "inside conditional" },
             ["al"] = { query = "@loop.outer", desc = "around loop" },
             ["il"] = { query = "@loop.inner", desc = "inside loop" },
-            ["am"] = { query = "@function.outer", desc = "around method/function" },
-            ["im"] = { query = "@function.inner", desc = "inside method/function" },
             ["a="] = { query = "@assignment.outer", desc = "around assignment" },
             ["i="] = { query = "@assignment.inner", desc = "inside assignment" },
             ["l="] = { query = "@assignment.lhs", desc = "assignment left side" },

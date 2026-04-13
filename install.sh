@@ -1,130 +1,224 @@
 #!/bin/bash
 # =============================================================================
 # Dotfiles Install Script
-# Replicates full terminal setup on a new Mac
+# Sets up a complete terminal environment on a fresh Mac
 # =============================================================================
 
 set -e
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "Starting dotfiles installation..."
+ask() {
+  printf "%s [y/N] " "$1"
+  read -r reply
+  [[ "$reply" =~ ^[Yy]$ ]]
+}
 
 # -----------------------------------------------------------------------------
 # 1. Homebrew
 # -----------------------------------------------------------------------------
-echo "Installing Homebrew..."
+echo "== Homebrew =="
 if ! command -v brew &>/dev/null; then
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
-  eval "$(/opt/homebrew/bin/brew shellenv)"
+  echo "Homebrew not found."
+  if ask "Install Homebrew?"; then
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  else
+    echo "Homebrew is required. Exiting."
+    exit 1
+  fi
 else
-  echo "  Homebrew already installed, skipping."
+  echo "Homebrew already installed."
 fi
 
 echo "Installing packages from Brewfile..."
 brew bundle --file="$DOTFILES/homebrew/Brewfile"
 
 # -----------------------------------------------------------------------------
-# 2. fzf-git.sh
+# 2. Python check
 # -----------------------------------------------------------------------------
-echo "Installing fzf-git.sh..."
-if [ ! -d "$HOME/fzf-git.sh" ]; then
-  git clone https://github.com/junegunn/fzf-git.sh.git ~/fzf-git.sh
+echo ""
+echo "== Python =="
+BREW_PYTHON="/opt/homebrew/opt/python@3.13/libexec/bin/python3"
+if [ -x "$BREW_PYTHON" ]; then
+  echo "Homebrew Python 3.13 found."
 else
-  echo "  fzf-git.sh already installed, skipping."
+  echo "Homebrew Python 3.13 not found."
+  if ask "Install Python 3.13 via Homebrew?"; then
+    brew install python@3.13
+  else
+    echo "Warning: Python tools (black, isort, pylint) require Python."
+  fi
+fi
+
+# Install Python tools
+if [ -x "$BREW_PYTHON" ] || command -v python3 &>/dev/null; then
+  PYTHON_CMD="${BREW_PYTHON:-python3}"
+  echo "Installing black, isort, pylint..."
+  "$PYTHON_CMD" -m pip install --user black isort pylint 2>/dev/null || \
+    "$PYTHON_CMD" -m pip install black isort pylint 2>/dev/null || \
+    echo "Warning: Failed to install Python tools. Install manually: pip install black isort pylint"
 fi
 
 # -----------------------------------------------------------------------------
-# 3. Zsh config
+# 3. Java check
 # -----------------------------------------------------------------------------
-echo "Setting up Zsh config..."
+echo ""
+echo "== Java =="
+if /usr/libexec/java_home &>/dev/null; then
+  echo "Java found:"
+  /usr/libexec/java_home -V 2>&1 | head -5
+else
+  echo "No Java installation found."
+  if ask "Install OpenJDK 21 via Homebrew?"; then
+    brew install openjdk@21
+    sudo ln -sfn /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-21.jdk
+    echo "OpenJDK 21 installed."
+  else
+    echo "Warning: Java LSP (jdtls) requires a JDK. Install one manually if needed."
+  fi
+fi
+
+# Set up jEnv
+if command -v jenv &>/dev/null; then
+  eval "$(jenv init -)"
+  jenv enable-plugin export 2>/dev/null || true
+  for jdk in /Library/Java/JavaVirtualMachines/*/Contents/Home; do
+    [ -d "$jdk" ] && jenv add "$jdk" 2>/dev/null || true
+  done
+  echo "Registered Java versions with jEnv."
+fi
+
+# -----------------------------------------------------------------------------
+# 4. fzf-git.sh
+# -----------------------------------------------------------------------------
+echo ""
+echo "== fzf-git.sh =="
+if [ ! -d "$HOME/fzf-git.sh" ]; then
+  git clone https://github.com/junegunn/fzf-git.sh.git ~/fzf-git.sh
+else
+  echo "Already installed."
+fi
+
+# -----------------------------------------------------------------------------
+# 5. Zsh config
+# -----------------------------------------------------------------------------
+echo ""
+echo "== Zsh config =="
 cp "$DOTFILES/zsh/.zshrc" ~/.zshrc
 cp "$DOTFILES/zsh/.p10k.zsh" ~/.p10k.zsh
+echo "Copied .zshrc and .p10k.zsh"
 
 # -----------------------------------------------------------------------------
-# 4. WezTerm config
+# 6. WezTerm config
 # -----------------------------------------------------------------------------
-echo "Setting up WezTerm config..."
+echo ""
+echo "== WezTerm =="
 cp "$DOTFILES/wezterm/.wezterm.lua" ~/.wezterm.lua
+echo "Copied .wezterm.lua"
 
 # -----------------------------------------------------------------------------
-# 5. Zellij config
+# 7. Zellij config
 # -----------------------------------------------------------------------------
-echo "Setting up Zellij config..."
+echo ""
+echo "== Zellij =="
 mkdir -p ~/.config/zellij/themes
 cp "$DOTFILES/zellij/config.kdl" ~/.config/zellij/config.kdl
 cp "$DOTFILES/zellij/themes/coolnight.kdl" ~/.config/zellij/themes/coolnight.kdl
+echo "Copied config.kdl and coolnight theme"
 
 # -----------------------------------------------------------------------------
-# 6. Neovim / LazyVim
+# 8. Neovim / LazyVim
 # -----------------------------------------------------------------------------
-echo "Setting up Neovim (LazyVim)..."
+echo ""
+echo "== Neovim (LazyVim) =="
+
 # Backup existing nvim config if present
-[ -d ~/.config/nvim ]       && mv ~/.config/nvim{,.bak}
-[ -d ~/.local/share/nvim ]  && mv ~/.local/share/nvim{,.bak}
-[ -d ~/.local/state/nvim ]  && mv ~/.local/state/nvim{,.bak}
-[ -d ~/.cache/nvim ]        && mv ~/.cache/nvim{,.bak}
+[ -d ~/.config/nvim ]       && mv ~/.config/nvim{,.bak}       && echo "Backed up existing nvim config"
+[ -d ~/.local/share/nvim ]  && mv ~/.local/share/nvim{,.bak}  && echo "Backed up nvim data"
+[ -d ~/.local/state/nvim ]  && mv ~/.local/state/nvim{,.bak}  && echo "Backed up nvim state"
+[ -d ~/.cache/nvim ]        && mv ~/.cache/nvim{,.bak}        && echo "Backed up nvim cache"
 
 # Clone LazyVim starter
 git clone https://github.com/LazyVim/starter ~/.config/nvim
 rm -rf ~/.config/nvim/.git
 
-# Overlay our custom configs on top of the starter
-cp "$DOTFILES/nvim/init.lua"       ~/.config/nvim/init.lua
-cp "$DOTFILES/nvim/lazyvim.json"   ~/.config/nvim/lazyvim.json
-cp "$DOTFILES/nvim/stylua.toml"    ~/.config/nvim/stylua.toml
+# Overlay custom configs
+cp "$DOTFILES/nvim/init.lua"    ~/.config/nvim/init.lua
+cp "$DOTFILES/nvim/lazyvim.json" ~/.config/nvim/lazyvim.json
+cp "$DOTFILES/nvim/stylua.toml" ~/.config/nvim/stylua.toml
 
-cp "$DOTFILES/nvim/lua/config/lazy.lua"     ~/.config/nvim/lua/config/lazy.lua
-cp "$DOTFILES/nvim/lua/config/options.lua"   ~/.config/nvim/lua/config/options.lua
-cp "$DOTFILES/nvim/lua/config/keymaps.lua"   ~/.config/nvim/lua/config/keymaps.lua
-cp "$DOTFILES/nvim/lua/config/autocmds.lua"  ~/.config/nvim/lua/config/autocmds.lua
+# Config files
+for f in lazy.lua options.lua keymaps.lua autocmds.lua; do
+  cp "$DOTFILES/nvim/lua/config/$f" ~/.config/nvim/lua/config/
+done
 
-cp "$DOTFILES/nvim/lua/plugins/alpha.lua"                   ~/.config/nvim/lua/plugins/
-cp "$DOTFILES/nvim/lua/plugins/auto-session.lua"            ~/.config/nvim/lua/plugins/
-cp "$DOTFILES/nvim/lua/plugins/colorscheme.lua"             ~/.config/nvim/lua/plugins/
-cp "$DOTFILES/nvim/lua/plugins/formatting.lua"              ~/.config/nvim/lua/plugins/
-cp "$DOTFILES/nvim/lua/plugins/linting.lua"                 ~/.config/nvim/lua/plugins/
-cp "$DOTFILES/nvim/lua/plugins/lualine.lua"                 ~/.config/nvim/lua/plugins/
-cp "$DOTFILES/nvim/lua/plugins/treesitter-textobjects.lua"  ~/.config/nvim/lua/plugins/
-cp "$DOTFILES/nvim/lua/plugins/vim-maximizer.lua"           ~/.config/nvim/lua/plugins/
+# Plugin files
+for f in "$DOTFILES"/nvim/lua/plugins/*.lua; do
+  cp "$f" ~/.config/nvim/lua/plugins/
+done
 
-# Custom treesitter queries for Java/Python
+# Custom treesitter queries
 mkdir -p ~/.config/nvim/after/queries/java
 mkdir -p ~/.config/nvim/after/queries/python
-cp "$DOTFILES/nvim/after/queries/java/textobjects.scm"   ~/.config/nvim/after/queries/java/
-cp "$DOTFILES/nvim/after/queries/python/textobjects.scm"  ~/.config/nvim/after/queries/python/
+cp "$DOTFILES/nvim/after/queries/java/textobjects.scm"  ~/.config/nvim/after/queries/java/
+cp "$DOTFILES/nvim/after/queries/python/textobjects.scm" ~/.config/nvim/after/queries/python/
+
+echo "Neovim configured. Plugins will auto-install on first launch."
 
 # -----------------------------------------------------------------------------
-# 7. Java (jEnv)
+# 9. Verify installation
 # -----------------------------------------------------------------------------
-echo "Setting up jEnv..."
-if command -v jenv &>/dev/null; then
-  eval "$(jenv init -)"
-  jenv enable-plugin export
-  # Register all installed Java versions
-  for jdk in /Library/Java/JavaVirtualMachines/*/Contents/Home; do
-    jenv add "$jdk" 2>/dev/null || true
-  done
-  echo "  Registered Java versions with jEnv."
-else
-  echo "  jEnv not found — install via: brew install jenv"
-fi
+echo ""
+echo "== Verification =="
 
-# -----------------------------------------------------------------------------
-# 8. Python tools
-# -----------------------------------------------------------------------------
-echo "Installing Python tools (black, isort, pylint)..."
-python3 -m pip install --user black isort pylint 2>/dev/null || true
+PASS=0
+FAIL=0
+
+check() {
+  if command -v "$1" &>/dev/null; then
+    printf "  %-20s OK\n" "$1"
+    PASS=$((PASS + 1))
+  else
+    printf "  %-20s MISSING\n" "$1"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+check nvim
+check bat
+check eza
+check fd
+check fzf
+check rg
+check lazygit
+check zellij
+check zoxide
+check gh
+check git
+check jenv
+check node
+check python3
+
+echo ""
+echo "$PASS passed, $FAIL missing"
 
 # -----------------------------------------------------------------------------
 # Done
 # -----------------------------------------------------------------------------
 echo ""
-echo "Dotfiles installed successfully!"
+echo "============================================"
+if [ "$FAIL" -eq 0 ]; then
+  echo "  All tools installed successfully!"
+else
+  echo "  Setup complete with $FAIL missing tool(s)."
+  echo "  Review the MISSING items above."
+fi
+echo "============================================"
 echo ""
 echo "Next steps:"
 echo "  1. Restart your terminal or run: source ~/.zshrc"
-echo "  2. Open WezTerm — config is live"
-echo "  3. Run: nvim  (LazyVim will auto-install plugins on first launch)"
-echo "  4. Run: p10k configure  to set up your prompt style"
+echo "  2. Open nvim (plugins auto-install on first launch)"
+echo "  3. Run: p10k configure (to set up your prompt)"
+echo ""
